@@ -255,13 +255,11 @@ form.addEventListener('submit', async event=>{event.preventDefault();const text=
 document.querySelector('#welcome').style.display='none';
 add('user',text);history.push({role:'user',content:text});input.value='';form.querySelector('button').disabled=true;
 const output=add('assistant','');history.push({role:'assistant',content:''});
-try{const response=await fetch('/api/chat/stream',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,history:history.slice(0,-2)})});
-const reader=response.body.getReader(), decoder=new TextDecoder();let buffer='';while(true){const part=await reader.read();if(part.done)break;buffer+=decoder.decode(part.value,{stream:true});
-for(const line of buffer.split('\n\n').slice(0,-1)){const data=line.replace(/^data: /,'');if(data==='[DONE]')continue;output.textContent+=data+' ';}buffer=buffer.split('\n\n').at(-1)}history.at(-1).content=output.textContent.trim();
-}catch(error){output.textContent='Unable to reach the server: '+error.message;history.at(-1).content=output.textContent}finally{form.querySelector('button').disabled=false;input.focus()}});
+try{const response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,history:history.slice(0,-2)})});
+if(!response.ok)throw new Error('Request returned '+response.status);const data=await response.json();output.textContent=data.reply;history.at(-1).content=data.reply;
+}catch(error){output.textContent='Unable to reach the server: '+error.message;history.at(-1).content=output.textContent
+}finally{form.querySelector('button').disabled=false;input.focus()}});
 </script></body></html>"""
-
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8000"))
     print(f"Starting server on http://0.0.0.0:{port}")

@@ -60,7 +60,7 @@ def test_chat_page_is_available():
 
     assert response.status_code == 200
     assert "Coding Tutor" in response.text
-    assert "/api/chat/stream" in response.text
+    assert "fetch('/api/chat'" in response.text
 
 
 def test_chat_get_returns_endpoint_info():
