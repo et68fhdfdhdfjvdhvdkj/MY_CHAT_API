@@ -1,3 +1,4 @@
+import importlib
 import os
 import sys
 
@@ -5,7 +6,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from fastapi.testclient import TestClient
 
-from main import app
+import main
+
+app = main.app
 
 
 class FakeMessage:
@@ -93,6 +96,35 @@ def test_streaming_mock_response_ends_cleanly(monkeypatch):
     assert "data: Offline " in response.text
     assert "data: response: " in response.text
     assert "data: [DONE]" in response.text
+
+
+def test_configured_cors_origins_are_loaded_from_environment(monkeypatch):
+    monkeypatch.setenv("CORS_ORIGINS", "https://app.example.com, https://admin.example.com")
+    reloaded = importlib.reload(main)
+
+    assert reloaded.get_allowed_origins() == [
+        "https://app.example.com",
+        "https://admin.example.com",
+    ]
+
+    response = TestClient(reloaded.app).get("/api/config")
+
+    assert response.status_code == 200
+    assert response.json()["cors_origins"] == [
+        "https://app.example.com",
+        "https://admin.example.com",
+    ]
+
+
+def test_build_messages_supports_general_assistant_prompt(monkeypatch):
+    monkeypatch.setenv("SYSTEM_PROMPT", "You are a general AI assistant.")
+    request = main.ChatRequest(message="hello", history=[{"role": "user", "content": "hi"}])
+
+    messages = main.build_messages(request)
+
+    assert messages[0]["role"] == "system"
+    assert "general ai assistant" in messages[0]["content"].lower()
+    assert messages[-1] == {"role": "user", "content": "hello"}
 
 
 def test_chat_forwards_history_to_model(monkeypatch):

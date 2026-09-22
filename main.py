@@ -27,6 +27,31 @@ def use_mock_mode() -> bool:
     return value in {"1", "true", "yes", "on"}
 
 
+def get_allowed_origins() -> list[str]:
+    raw_value = os.environ.get("CORS_ORIGINS")
+    if not raw_value:
+        return ["*"]
+
+    origins = []
+    for item in raw_value.replace(";", ",").split(","):
+        origin = item.strip()
+        if origin:
+            origins.append(origin)
+    return origins or ["*"]
+
+
+def get_host() -> str:
+    return os.environ.get("HOST", "0.0.0.0")
+
+
+def get_port() -> int:
+    value = os.environ.get("PORT", "8000")
+    try:
+        return int(value)
+    except ValueError:
+        return 8000
+
+
 def generate_mock_reply(message: str) -> str:
     text = (message or "").strip()
     if not text:
@@ -41,30 +66,33 @@ app = FastAPI(title="Coding Tutor API - GitHub Models")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=get_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-SYSTEM_INSTRUCTION = """
-Purpose:
-Your purpose is to help me with coding tasks like writing code, fixing bugs, explaining code, and planning projects.
+DEFAULT_SYSTEM_PROMPT = """
+You are a helpful general-purpose AI assistant.
 
-Goals:
-- Write complete code whenever possible.
-- Explain the steps clearly.
-- Help the user understand how the solution works.
-- Keep responses focused on coding.
-- Be patient, clear, and supportive.
+Your job is to help the user with a broad range of tasks, including coding, debugging, writing, analysis, planning, explanations, brainstorms, and productivity support.
 
-Rules:
-- Never discuss unrelated topics.
+Core behavior:
+- Be helpful, clear, and concise.
+- Use simple language unless the user asks for technical depth.
 - Keep context across the full conversation.
-- Use simple language.
 - Ask clarifying questions when needed.
+- Prefer practical, complete responses.
+- If the user asks for code, provide working code when possible.
+- If the user asks for explanations, break them down clearly.
+- Stay focused on the user's request and avoid unrelated topics.
+- Be honest about uncertainty and explain tradeoffs when relevant.
 """
+
+
+def get_system_instruction() -> str:
+    return os.environ.get("SYSTEM_PROMPT", DEFAULT_SYSTEM_PROMPT).strip() or DEFAULT_SYSTEM_PROMPT
 
 
 class ChatRequest(BaseModel):
@@ -83,7 +111,7 @@ def build_messages(request: ChatRequest) -> list[dict[str, str]]:
         if item.get("role") in {"user", "assistant"} and item.get("content")
     ]
     return [
-        {"role": "system", "content": SYSTEM_INSTRUCTION},
+        {"role": "system", "content": get_system_instruction()},
         *history,
         {"role": "user", "content": request.message},
     ]
@@ -173,6 +201,19 @@ def test_route():
     }
 
 
+@app.get("/api/config")
+def config_route():
+    return {
+        "title": app.title,
+        "model": os.environ.get("GITHUB_MODELS_MODEL", "openai/gpt-4o-mini"),
+        "mock_mode": use_mock_mode(),
+        "token_configured": bool(get_api_key()),
+        "cors_origins": get_allowed_origins(),
+        "host": get_host(),
+        "port": get_port(),
+    }
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
     if use_mock_mode() or not get_api_key():
@@ -251,6 +292,12 @@ function showGames(){document.querySelector('#chat-view').style.display='none';d
 function showChat(){document.querySelector('#chat-view').style.display='block';document.querySelector('.composer').style.display='flex';document.querySelector('.fine-print').style.display='block';document.querySelector('#games-view').classList.remove('active')}
 function answerGame(button, answer){const result=document.querySelector('#game-result');result.textContent=answer==='3'?'Correct! Python uses -1 for the last item.':'Not quite. The answer is 3.';result.style.color=answer==='3'?'#188038':'#b3261e'}
 function add(role, text){const el=document.createElement('div');el.className='message '+role;el.textContent=text;messages.append(el);return el}
+input.addEventListener('keydown', event => {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    form.requestSubmit();
+  }
+});
 form.addEventListener('submit', async event=>{event.preventDefault();const text=input.value.trim();if(!text)return;
 document.querySelector('#welcome').style.display='none';
 add('user',text);history.push({role:'user',content:text});input.value='';form.querySelector('button').disabled=true;
@@ -261,6 +308,7 @@ if(!response.ok)throw new Error('Request returned '+response.status);const data=
 }finally{form.querySelector('button').disabled=false;input.focus()}});
 </script></body></html>"""
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", "8000"))
-    print(f"Starting server on http://0.0.0.0:{port}")
-    uvicorn.run(app, host="0.0.0.0", port=port, timeout_keep_alive=120)
+    host = get_host()
+    port = get_port()
+    print(f"Starting server on http://{host}:{port}")
+    uvicorn.run(app, host=host, port=port, timeout_keep_alive=120)
