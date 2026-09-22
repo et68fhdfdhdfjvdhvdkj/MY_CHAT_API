@@ -135,7 +135,7 @@ def get_model_client() -> OpenAI:
 
     base_url = os.environ.get(
         "GITHUB_MODELS_BASE_URL",
-        "https://models.github.ai/inference",
+        "https://models.inference.ai.azure.com",
     )
     return OpenAI(base_url=base_url, api_key=token)
 
