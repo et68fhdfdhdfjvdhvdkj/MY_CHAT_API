@@ -216,15 +216,26 @@ def config_route():
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
-    if use_mock_mode() or not get_api_key():
+    if use_mock_mode():
+        print(f"DEBUG: Mock mode is ENABLED")
         return ChatResponse(reply=generate_mock_reply(request.message))
+    
+    token = get_api_key()
+    if not token:
+        print(f"DEBUG: No token found!")
+        return ChatResponse(reply=generate_mock_reply(request.message))
+    
+    print(f"DEBUG: Token found, attempting API call...")
+    print(f"DEBUG: Token starts with: {token[:10]}...")
 
     try:
         client = get_model_client()
+        print(f"DEBUG: Client created successfully")
         response = client.chat.completions.create(
             model=os.environ.get("GITHUB_MODELS_MODEL", "openai/gpt-4o-mini"),
             messages=build_messages(request),
         )
+        print(f"DEBUG: API call successful")
 
         content = response.choices[0].message.content
         if content is None:
@@ -233,6 +244,9 @@ async def chat_endpoint(request: ChatRequest):
         return ChatResponse(reply=content)
 
     except Exception as exc:
+        print(f"DEBUG: Exception occurred: {type(exc).__name__}: {exc}")
+        import traceback
+        traceback.print_exc()
         return ChatResponse(
             reply=f"Offline mock response: Connection to model provider failed: {exc}. This is a fallback reply."
         )
@@ -312,3 +326,4 @@ if __name__ == "__main__":
     port = get_port()
     print(f"Starting server on http://{host}:{port}")
     uvicorn.run(app, host=host, port=port, timeout_keep_alive=120)
+
