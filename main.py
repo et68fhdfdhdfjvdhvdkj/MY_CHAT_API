@@ -118,9 +118,17 @@ def build_messages(request: ChatRequest) -> list[dict[str, str]]:
 
 
 def get_api_key() -> str:
+    """Only use Together AI API key. Ignore OpenAI keys completely."""
     token = os.environ.get("TOGETHER_AI_API_KEY")
     if token and token.strip():
         return token.strip()
+    
+    # Warn if old OpenAI keys are set
+    old_keys = ["OPENAI_API_KEY", "GITHUB_TOKEN", "GH_TOKEN", "GITHUB_MODELS_TOKEN"]
+    for key in old_keys:
+        if os.environ.get(key):
+            print(f"WARNING: Found {key} set but not using it. Only TOGETHER_AI_API_KEY is used.")
+    
     return ""
 
 
@@ -129,7 +137,7 @@ def get_model_client() -> OpenAI:
     if not token:
         raise HTTPException(
             status_code=503,
-            detail="No API token found. Set TOGETHER_AI_API_KEY.",
+            detail="TOGETHER_AI_API_KEY not set. Go to https://together.ai, get a free API key, and set it in Railway variables.",
         )
 
     return OpenAI(
