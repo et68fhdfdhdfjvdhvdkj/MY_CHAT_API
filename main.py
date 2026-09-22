@@ -62,7 +62,7 @@ def generate_mock_reply(message: str) -> str:
     )
 
 
-app = FastAPI(title="Coding Tutor API - OpenAI")
+app = FastAPI(title="Coding Tutor API - Together AI")
 
 app.add_middleware(
     CORSMiddleware,
@@ -118,10 +118,9 @@ def build_messages(request: ChatRequest) -> list[dict[str, str]]:
 
 
 def get_api_key() -> str:
-    for key in ("OPENAI_API_KEY", "GITHUB_TOKEN", "GH_TOKEN", "GITHUB_MODELS_TOKEN"):
-        token = os.environ.get(key)
-        if token and token.strip():
-            return token.strip()
+    token = os.environ.get("TOGETHER_AI_API_KEY")
+    if token and token.strip():
+        return token.strip()
     return ""
 
 
@@ -130,10 +129,13 @@ def get_model_client() -> OpenAI:
     if not token:
         raise HTTPException(
             status_code=503,
-            detail="No API token found. Set OPENAI_API_KEY.",
+            detail="No API token found. Set TOGETHER_AI_API_KEY.",
         )
 
-    return OpenAI(api_key=token)
+    return OpenAI(
+        base_url="https://api.together.xyz/v1",
+        api_key=token
+    )
 
 
 async def stream_mock_reply(message: str) -> AsyncIterator[str]:
@@ -146,7 +148,7 @@ async def stream_mock_reply(message: str) -> AsyncIterator[str]:
 def stream_model_reply(request: ChatRequest) -> AsyncIterator[str]:
     client = get_model_client()
     response = client.chat.completions.create(
-        model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+        model=os.environ.get("TOGETHER_AI_MODEL", "meta-llama/Llama-3-8b-chat-hf"),
         messages=build_messages(request),
         stream=True,
     )
@@ -172,7 +174,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.get("/")
 def health_check():
     return {
-        "status": "Server active with OpenAI",
+        "status": "Server active with Together AI",
         "mock_mode": use_mock_mode(),
         "token_configured": bool(get_api_key()),
     }
@@ -201,7 +203,7 @@ def test_route():
 def config_route():
     return {
         "title": app.title,
-        "model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+        "model": os.environ.get("TOGETHER_AI_MODEL", "meta-llama/Llama-3-8b-chat-hf"),
         "mock_mode": use_mock_mode(),
         "token_configured": bool(get_api_key()),
         "cors_origins": get_allowed_origins(),
@@ -218,7 +220,7 @@ async def chat_endpoint(request: ChatRequest):
     try:
         client = get_model_client()
         response = client.chat.completions.create(
-            model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+            model=os.environ.get("TOGETHER_AI_MODEL", "meta-llama/Llama-3-8b-chat-hf"),
             messages=build_messages(request),
         )
 
