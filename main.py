@@ -62,7 +62,7 @@ def generate_mock_reply(message: str) -> str:
     )
 
 
-app = FastAPI(title="Coding Tutor API - GitHub Models")
+app = FastAPI(title="Coding Tutor API - OpenAI")
 
 app.add_middleware(
     CORSMiddleware,
@@ -118,7 +118,7 @@ def build_messages(request: ChatRequest) -> list[dict[str, str]]:
 
 
 def get_api_key() -> str:
-    for key in ("GITHUB_TOKEN", "GH_TOKEN", "GITHUB_MODELS_TOKEN", "OPENAI_API_KEY"):
+    for key in ("OPENAI_API_KEY", "GITHUB_TOKEN", "GH_TOKEN", "GITHUB_MODELS_TOKEN"):
         token = os.environ.get(key)
         if token and token.strip():
             return token.strip()
@@ -130,14 +130,10 @@ def get_model_client() -> OpenAI:
     if not token:
         raise HTTPException(
             status_code=503,
-            detail="No API token found. Set GITHUB_TOKEN, GH_TOKEN, or OPENAI_API_KEY.",
+            detail="No API token found. Set OPENAI_API_KEY.",
         )
 
-    base_url = os.environ.get(
-        "GITHUB_MODELS_BASE_URL",
-        "https://models.inference.ai.azure.com",
-    )
-    return OpenAI(base_url=base_url, api_key=token)
+    return OpenAI(api_key=token)
 
 
 async def stream_mock_reply(message: str) -> AsyncIterator[str]:
@@ -150,7 +146,7 @@ async def stream_mock_reply(message: str) -> AsyncIterator[str]:
 def stream_model_reply(request: ChatRequest) -> AsyncIterator[str]:
     client = get_model_client()
     response = client.chat.completions.create(
-        model=os.environ.get("GITHUB_MODELS_MODEL", "openai/gpt-4o-mini"),
+        model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
         messages=build_messages(request),
         stream=True,
     )
@@ -176,7 +172,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.get("/")
 def health_check():
     return {
-        "status": "Server active with GitHub Models",
+        "status": "Server active with OpenAI",
         "mock_mode": use_mock_mode(),
         "token_configured": bool(get_api_key()),
     }
@@ -205,7 +201,7 @@ def test_route():
 def config_route():
     return {
         "title": app.title,
-        "model": os.environ.get("GITHUB_MODELS_MODEL", "openai/gpt-4o-mini"),
+        "model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
         "mock_mode": use_mock_mode(),
         "token_configured": bool(get_api_key()),
         "cors_origins": get_allowed_origins(),
@@ -222,7 +218,7 @@ async def chat_endpoint(request: ChatRequest):
     try:
         client = get_model_client()
         response = client.chat.completions.create(
-            model=os.environ.get("GITHUB_MODELS_MODEL", "openai/gpt-4o-mini"),
+            model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
             messages=build_messages(request),
         )
 
@@ -312,3 +308,4 @@ if __name__ == "__main__":
     port = get_port()
     print(f"Starting server on http://{host}:{port}")
     uvicorn.run(app, host=host, port=port, timeout_keep_alive=120)
+
